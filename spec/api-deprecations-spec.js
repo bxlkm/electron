@@ -76,6 +76,14 @@ describe('deprecations', () => {
     expect(o).to.have.a.property(oldPropertyName).that.is.equal(value)
   })
 
+  it('doesn\'t deprecate a property not on an object', () => {
+    const o = {}
+
+    expect(() => {
+      deprecate.removeProperty(o, 'iDontExist')
+    }).to.throw(/Cannot deprecate a property on an object which does not have that property/)
+  })
+
   it('deprecates a property of an object', () => {
     let msg
     deprecations.setHandler(m => { msg = m })
