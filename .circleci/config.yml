@@ -123,6 +123,22 @@ gn-build-steps: &gn-build-steps
             (cd electron/spec && npm install)
             python electron/script/lib/dbus_mock.py ./out/Default/electron electron/spec --ci --enable-logging
           fi
+          if [ "$RUN_ARM_TESTS" == "true" ]; then
+            docker run --rm --privileged multiarch/qemu-user-static:register --reset
+            docker run -it \
+              --mount type=bind,source=/tmp/workspace,target=/tmp/workspace \
+              --rm electronbuilds/electronarm7:0.0.4 | tee version.txt
+            if grep -q "$(script/get-version.py)" version.txt; then
+              echo "Versions match"
+            else
+              echo "Versions do not match"
+              exit 1
+            fi
+            if grep -q "core dumped" version.txt; then
+              echo "Core dump detected"
+              exit 1
+            fi
+          fi
     - <<: *notify-slack-failure
     - <<: *notify-slack-success
     - store_test_results:
@@ -293,6 +309,7 @@ jobs:
       GN_EXTRA_ARGS: 'target_cpu = "arm"'
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_arm=True'
       RUN_TESTS: false
+      RUN_ARM_TESTS: true
     <<: *gn-linux-build-machine
     <<: *gn-build-steps
 
@@ -302,6 +319,7 @@ jobs:
       GN_EXTRA_ARGS: 'target_cpu = "arm"'
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_arm=True'
       RUN_TESTS: false
+      RUN_ARM_TESTS: true
       BUILD_FFMPEG: true
       BUILD_NATIVE_MKSNAPSHOT: true
       MKSNAPSHOT_TOOLCHAIN: //build/toolchain/linux:clang_arm
@@ -324,6 +342,7 @@ jobs:
       GN_EXTRA_ARGS: 'target_cpu = "arm64" fatal_linker_warnings = false enable_linux_installer = false'
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_arm64=True'
       RUN_TESTS: false
+      RUN_ARM_TESTS: true
     <<: *gn-linux-build-machine
     <<: *gn-build-steps
 
@@ -333,6 +352,7 @@ jobs:
       GN_EXTRA_ARGS: 'target_cpu = "arm64" fatal_linker_warnings = false enable_linux_installer = false'
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_arm64=True'
       RUN_TESTS: false
+      RUN_ARM_TESTS: true
       BUILD_FFMPEG: true
       BUILD_NATIVE_MKSNAPSHOT: true
       MKSNAPSHOT_TOOLCHAIN: //build/toolchain/linux:clang_arm64
