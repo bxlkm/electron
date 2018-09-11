@@ -55,7 +55,7 @@ describe('deprecations', () => {
 
   it('renames a property', () => {
     let msg
-    deprecations.setHandler((m) => { msg = m })
+    deprecations.setHandler(m => { msg = m })
 
     const oldPropertyName = 'dingyOldName'
     const newPropertyName = 'shinyNewName'
@@ -89,7 +89,7 @@ describe('deprecations', () => {
     deprecations.setHandler(m => { msg = m })
 
     const propertyName = 'itMustGo'
-    const o = { [propertyName]: 0 }
+    let o = { [propertyName]: 0 }
 
     deprecate.removeProperty(o, propertyName)
 
@@ -99,13 +99,12 @@ describe('deprecations', () => {
 
   it('warns if deprecated property is already set', () => {
     let msg
-    deprecations.setHandler((m) => { msg = m })
+    deprecations.setHandler(m => { msg = m })
 
     const oldPropertyName = 'dingyOldName'
     const newPropertyName = 'shinyNewName'
-    const value = 0
 
-    let o = { [oldPropertyName]: value }
+    let o = {[oldPropertyName]: 0}
     deprecate.renameProperty(o, oldPropertyName, newPropertyName)
 
     expect(msg).to.be.a('string')
