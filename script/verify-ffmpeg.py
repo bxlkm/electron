@@ -1,70 +1,74 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import sys
 
-from lib.gn import gn
-from lib.util import rm_rf
+from lib.util import get_electron_branding, rm_rf
 
-
+PROJECT_NAME = get_electron_branding()['project_name']
+PRODUCT_NAME = get_electron_branding()['product_name']
 SOURCE_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-
 
 def main():
   args = parse_args()
 
-  initial_app_path = os.path.join(os.path.abspath(args.source_root), args.build_dir)
+  source_root = os.path.abspath(args.source_root)
+  initial_app_path = os.path.join(source_root, args.build_dir)
   app_path = create_app_copy(initial_app_path)
 
-  # Those are the same in the original app and its copy.
-  # So it is ok to retrieve them from the original build dir and use in the copy.
-  product_name = gn(initial_app_path).args().get_string('electron_product_name')
-  project_name = gn(initial_app_path).args().get_string('electron_project_name')
-
   if sys.platform == 'darwin':
-    electron = os.path.join(app_path, 'Contents', 'MacOS', product_name)
+    electron = os.path.join(app_path, 'Contents', 'MacOS', PRODUCT_NAME)
     ffmpeg_name = 'libffmpeg.dylib'
     ffmpeg_app_path = os.path.join(app_path, 'Contents', 'Frameworks',
-                    '{0} Framework.framework'.format(product_name),
+                    '{0} Framework.framework'.format(PRODUCT_NAME),
                     'Libraries')
   elif sys.platform == 'win32':
-    electron = os.path.join(app_path, '{0}.exe'.format(project_name))
+    electron = os.path.join(app_path, '{0}.exe'.format(PROJECT_NAME))
     ffmpeg_app_path = app_path
     ffmpeg_name = 'ffmpeg.dll'
   else:
-    electron = os.path.join(app_path, project_name)
+    electron = os.path.join(app_path, PROJECT_NAME)
     ffmpeg_app_path = app_path
     ffmpeg_name = 'libffmpeg.so'
 
   # Copy ffmpeg without proprietary codecs into app.
-  ffmpeg_lib_path = os.path.join(os.path.abspath(args.source_root), args.ffmpeg_path, ffmpeg_name)
+  ffmpeg_lib_path = os.path.join(source_root, args.ffmpeg_path, ffmpeg_name)
   shutil.copy(ffmpeg_lib_path, ffmpeg_app_path)
 
   returncode = 0
   try:
     test_path = os.path.join(SOURCE_ROOT, 'spec', 'fixtures',
         'no-proprietary-codecs.js')
-    subprocess.check_call([electron, test_path] + sys.argv[1:])
+    env = dict(os.environ)
+    env['ELECTRON_ENABLE_STACK_DUMPING'] = 'true'
+    # FIXME: Enable after ELECTRON_ENABLE_LOGGING works again
+    # env['ELECTRON_ENABLE_LOGGING'] = 'true'
+    testargs = [electron, test_path]
+    if sys.platform != 'linux' and (platform.machine() == 'ARM64' or os.environ.get('TARGET_ARCH') == 'arm64'):
+      testargs.append('--disable-accelerated-video-decode')
+    subprocess.check_call(testargs, env=env)
   except subprocess.CalledProcessError as e:
     returncode = e.returncode
   except KeyboardInterrupt:
     returncode = 0
 
   if returncode == 0:
-    print 'ok Non proprietary ffmpeg does not contain proprietary codes.'
+    print('ok Non proprietary ffmpeg does not contain proprietary codes.')
   return returncode
 
 
 # Create copy of app to install ffmpeg library without proprietary codecs into
 def create_app_copy(initial_app_path):
   app_path = os.path.join(os.path.dirname(initial_app_path),
-                          os.path.basename(initial_app_path) + '-no-proprietary-codecs')
+                          os.path.basename(initial_app_path)
+                          + '-no-proprietary-codecs')
 
   if sys.platform == 'darwin':
-    product_name = gn(initial_app_path).args().get_string('electron_product_name')
-    app_name = '{0}.app'.format(product_name)
+    app_name = '{0}.app'.format(PRODUCT_NAME)
     initial_app_path = os.path.join(initial_app_path, app_name)
     app_path = os.path.join(app_path, app_name)
 
@@ -75,14 +79,16 @@ def create_app_copy(initial_app_path):
 def parse_args():
   parser = argparse.ArgumentParser(description='Test non-proprietary ffmpeg')
   parser.add_argument('-b', '--build-dir',
-                      help='Path to an Electron build folder. Relative to the --source-root.',
+                      help='Path to an Electron build folder. \
+                          Relative to the --source-root.',
                       default=None,
                       required=True)
   parser.add_argument('--source-root',
                       default=SOURCE_ROOT,
                       required=False)
   parser.add_argument('--ffmpeg-path',
-                      help='Path to a folder with a ffmpeg lib. Relative to the --source-root.',
+                      help='Path to a folder with a ffmpeg lib. \
+                          Relative to the --source-root.',
                       default=None,
                       required=True)
   return parser.parse_args()

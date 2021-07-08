@@ -4,11 +4,11 @@
 
 #include "chrome/browser/ui/views/frame/global_menu_bar_registrar_x11.h"
 
-#include "atom/browser/ui/views/global_menu_bar_x11.h"
 #include "base/bind.h"
 #include "base/debug/leak_annotations.h"
 #include "base/logging.h"
 #include "content/public/browser/browser_thread.h"
+#include "shell/browser/ui/views/global_menu_bar_x11.h"
 
 using content::BrowserThread;
 
@@ -24,22 +24,21 @@ GlobalMenuBarRegistrarX11* GlobalMenuBarRegistrarX11::GetInstance() {
   return base::Singleton<GlobalMenuBarRegistrarX11>::get();
 }
 
-void GlobalMenuBarRegistrarX11::OnWindowMapped(unsigned long xid) {
-  live_xids_.insert(xid);
+void GlobalMenuBarRegistrarX11::OnWindowMapped(x11::Window window) {
+  live_windows_.insert(window);
 
   if (registrar_proxy_)
-    RegisterXID(xid);
+    RegisterXWindow(window);
 }
 
-void GlobalMenuBarRegistrarX11::OnWindowUnmapped(unsigned long xid) {
+void GlobalMenuBarRegistrarX11::OnWindowUnmapped(x11::Window window) {
   if (registrar_proxy_)
-    UnregisterXID(xid);
+    UnregisterXWindow(window);
 
-  live_xids_.erase(xid);
+  live_windows_.erase(window);
 }
 
-GlobalMenuBarRegistrarX11::GlobalMenuBarRegistrarX11()
-    : registrar_proxy_(nullptr) {
+GlobalMenuBarRegistrarX11::GlobalMenuBarRegistrarX11() {
   // libdbusmenu uses the gio version of dbus; I tried using the code in dbus/,
   // but it looks like that's isn't sharing the bus name with the gio version,
   // even when |connection_type| is set to SHARED.
@@ -63,9 +62,9 @@ GlobalMenuBarRegistrarX11::~GlobalMenuBarRegistrarX11() {
   }
 }
 
-void GlobalMenuBarRegistrarX11::RegisterXID(unsigned long xid) {
+void GlobalMenuBarRegistrarX11::RegisterXWindow(x11::Window window) {
   DCHECK(registrar_proxy_);
-  std::string path = atom::GlobalMenuBarX11::GetPathForWindow(xid);
+  std::string path = electron::GlobalMenuBarX11::GetPathForWindow(window);
 
   ANNOTATE_SCOPED_MEMORY_LEAK;  // http://crbug.com/314087
   // TODO(erg): The mozilla implementation goes to a lot of callback trouble
@@ -76,13 +75,13 @@ void GlobalMenuBarRegistrarX11::RegisterXID(unsigned long xid) {
   // I don't see any reason why we should care if "RegisterWindow" completes or
   // not.
   g_dbus_proxy_call(registrar_proxy_, "RegisterWindow",
-                    g_variant_new("(uo)", xid, path.c_str()),
+                    g_variant_new("(uo)", window, path.c_str()),
                     G_DBUS_CALL_FLAGS_NONE, -1, nullptr, nullptr, nullptr);
 }
 
-void GlobalMenuBarRegistrarX11::UnregisterXID(unsigned long xid) {
+void GlobalMenuBarRegistrarX11::UnregisterXWindow(x11::Window window) {
   DCHECK(registrar_proxy_);
-  std::string path = atom::GlobalMenuBarX11::GetPathForWindow(xid);
+  std::string path = electron::GlobalMenuBarX11::GetPathForWindow(window);
 
   ANNOTATE_SCOPED_MEMORY_LEAK;  // http://crbug.com/314087
   // TODO(erg): The mozilla implementation goes to a lot of callback trouble
@@ -93,7 +92,7 @@ void GlobalMenuBarRegistrarX11::UnregisterXID(unsigned long xid) {
   // I don't see any reason why we should care if "UnregisterWindow" completes
   // or not.
   g_dbus_proxy_call(registrar_proxy_, "UnregisterWindow",
-                    g_variant_new("(u)", xid), G_DBUS_CALL_FLAGS_NONE, -1,
+                    g_variant_new("(u)", window), G_DBUS_CALL_FLAGS_NONE, -1,
                     nullptr, nullptr, nullptr);
 }
 
@@ -120,10 +119,9 @@ void GlobalMenuBarRegistrarX11::OnProxyCreated(GObject* source,
 
 void GlobalMenuBarRegistrarX11::OnNameOwnerChanged(GObject* /* ignored */,
                                                    GParamSpec* /* ignored */) {
-  // If the name owner changed, we need to reregister all the live xids with
-  // the system.
-  for (std::set<unsigned long>::const_iterator it = live_xids_.begin();
-       it != live_xids_.end(); ++it) {
-    RegisterXID(*it);
+  // If the name owner changed, we need to reregister all the live x11::Window
+  // with the system.
+  for (const auto& window : live_windows_) {
+    RegisterXWindow(window);
   }
 }

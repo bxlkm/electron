@@ -15,6 +15,7 @@ import fnmatch
 import io
 import multiprocessing
 import os
+import posixpath
 import signal
 import subprocess
 import sys
@@ -22,6 +23,7 @@ import traceback
 import tempfile
 
 from functools import partial
+from lib.util import get_buildtools_executable
 
 DEFAULT_EXTENSIONS = 'c,h,C,H,cpp,hpp,cc,hh,c++,h++,cxx,hxx,mm'
 
@@ -105,30 +107,37 @@ def run_clang_format_diff(args, file_name):
     except IOError as exc:
         raise DiffError(str(exc))
     invocation = [args.clang_format_executable, file_name]
+    if args.fix:
+        invocation.append('-i')
     try:
         proc = subprocess.Popen(
-            invocation,
+            ' '.join(invocation),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            shell = True)
+            shell=True)
     except OSError as exc:
         raise DiffError(str(exc))
     proc_stdout = proc.stdout
     proc_stderr = proc.stderr
-    if sys.version_info[0] < 3:
-        # make the pipes compatible with Python 3,
-        # reading lines should output unicode
-        encoding = 'utf-8'
-        proc_stdout = codecs.getreader(encoding)(proc_stdout)
-        proc_stderr = codecs.getreader(encoding)(proc_stderr)
-    # hopefully the stderr pipe won't get full and block the process
+    if sys.version_info[0] == 3:
+        proc_stdout = proc_stdout.detach()
+        proc_stderr = proc_stderr.detach()
+    # make the pipes compatible with Python 3,
+    # reading lines should output unicode
+    encoding = 'utf-8'
+    proc_stdout = codecs.getreader(encoding)(proc_stdout)
+    proc_stderr = codecs.getreader(encoding)(proc_stderr)
     outs = list(proc_stdout.readlines())
     errs = list(proc_stderr.readlines())
     proc.wait()
     if proc.returncode:
         raise DiffError("clang-format exited with status {}: '{}'".format(
             proc.returncode, file_name), errs)
+    if args.fix:
+        return None, errs
+    if sys.platform == 'win32':
+        file_name = file_name.replace(os.sep, posixpath.sep)
     return make_diff(file_name, original, outs), errs
 
 
@@ -184,12 +193,16 @@ def main():
         '--clang-format-executable',
         metavar='EXECUTABLE',
         help='path to the clang-format executable',
-        default='clang-format')
+        default=get_buildtools_executable('clang-format'))
     parser.add_argument(
         '--extensions',
         help='comma separated list of file extensions (default: {})'.format(
             DEFAULT_EXTENSIONS),
         default=DEFAULT_EXTENSIONS)
+    parser.add_argument(
+        '--fix',
+        help='if specified, reformat files in-place',
+        action='store_true')
     parser.add_argument(
         '-r',
         '--recursive',
@@ -253,10 +266,10 @@ def main():
     parse_files = []
     if args.changed:
         popen = subprocess.Popen(
-            ["git", "diff", "--name-only", "--cached"],
+            'git diff --name-only --cached',
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            shell = True
+            shell=True
         )
         for line in popen.stdout:
             file_name = line.rstrip()
@@ -280,6 +293,10 @@ def main():
     if njobs == 0:
         njobs = multiprocessing.cpu_count() + 1
     njobs = min(len(files), njobs)
+
+    if not args.fix:
+        patch_file = tempfile.NamedTemporaryFile(delete=False,
+                                                 prefix='electron-format-')
 
     if njobs == 1:
         # execute directly instead of in a pool,
@@ -313,16 +330,23 @@ def main():
             sys.stderr.writelines(errs)
             if outs == []:
                 continue
-            if not args.quiet:
-                print_diff(outs, use_color=colored_stdout)
-                with tempfile.NamedTemporaryFile(delete=False) as patch_file:
+            if not args.fix:
+                if not args.quiet:
+                    print_diff(outs, use_color=colored_stdout)
                     for line in outs:
-                        patch_file.write(line)
-                    patch_file.write('\n')
-                    print("\nTo apply this patch, run:\n$ git apply {}\n"
-                          .format(patch_file.name))
-            if retcode == ExitStatus.SUCCESS:
-                retcode = ExitStatus.DIFF
+                        patch_file.write(line.encode('utf-8'))
+                    patch_file.write('\n'.encode('utf-8'))
+                if retcode == ExitStatus.SUCCESS:
+                    retcode = ExitStatus.DIFF
+
+    if not args.fix:
+        if patch_file.tell() == 0:
+          patch_file.close()
+          os.unlink(patch_file.name)
+        else:
+          print("\nTo patch these files, run:\n$ git apply {}\n"
+                .format(patch_file.name))
+
     return retcode
 
 

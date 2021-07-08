@@ -5,14 +5,12 @@
 #ifndef CHROME_BROWSER_CERTIFICATE_MANAGER_MODEL_H_
 #define CHROME_BROWSER_CERTIFICATE_MANAGER_MODEL_H_
 
-#include <map>
 #include <memory>
 #include <string>
 
 #include "base/callback.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/string16.h"
 #include "net/cert/nss_cert_database.h"
 
 namespace content {
@@ -24,14 +22,14 @@ class ResourceContext;
 // manager dialog, and processes changes from the view.
 class CertificateManagerModel {
  public:
-  typedef base::Callback<void(std::unique_ptr<CertificateManagerModel>)>
-      CreationCallback;
+  using CreationCallback =
+      base::OnceCallback<void(std::unique_ptr<CertificateManagerModel>)>;
 
   // Creates a CertificateManagerModel. The model will be passed to the callback
   // when it is ready. The caller must ensure the model does not outlive the
   // |browser_context|.
   static void Create(content::BrowserContext* browser_context,
-                     const CreationCallback& callback);
+                     CreationCallback callback);
 
   ~CertificateManagerModel();
 
@@ -46,7 +44,7 @@ class CertificateManagerModel {
   // Returns a net error code on failure.
   int ImportFromPKCS12(PK11SlotInfo* slot_info,
                        const std::string& data,
-                       const base::string16& password,
+                       const std::u16string& password,
                        bool is_extractable,
                        net::ScopedCERTCertificateList* imported_certs);
 
@@ -100,11 +98,11 @@ class CertificateManagerModel {
   // file for details.
   static void DidGetCertDBOnUIThread(net::NSSCertDatabase* cert_db,
                                      bool is_user_db_available,
-                                     const CreationCallback& callback);
-  static void DidGetCertDBOnIOThread(const CreationCallback& callback,
+                                     CreationCallback callback);
+  static void DidGetCertDBOnIOThread(CreationCallback callback,
                                      net::NSSCertDatabase* cert_db);
   static void GetCertDBOnIOThread(content::ResourceContext* context,
-                                  const CreationCallback& callback);
+                                  CreationCallback callback);
 
   net::NSSCertDatabase* cert_db_;
   // Whether the certificate database has a public slot associated with the

@@ -8,8 +8,7 @@ be found in the `.gn` and `.gni` files.
 
 The following `gn` files contain the main rules for building Electron:
 
-* `BUILD.gn` defines how Electron itself is built.
-* `brightray/BUILD.gn` defines how `brightray` is built and
+* `BUILD.gn` defines how Electron itself is built and
   includes the default configurations for linking with Chromium.
 * `build/args/{debug,release,all}.gn` contain the default build arguments for
   building Electron.
@@ -58,7 +57,7 @@ you're currently working on using Mocha's
 `.only` to any `describe` or `it` function call:
 
 ```js
-describe.only('some feature', function () {
+describe.only('some feature', () => {
   // ... only tests in this block will be run
 })
 ```

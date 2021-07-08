@@ -11,7 +11,7 @@ From [ChromeDriver - WebDriver for Chrome][chrome-driver]:
 ## Setting up Spectron
 
 [Spectron][spectron] is the officially supported ChromeDriver testing framework
-for Electron. It is built on top of [WebdriverIO](http://webdriver.io/) and
+for Electron. It is built on top of [WebdriverIO](https://webdriver.io/) and
 has helpers to access Electron APIs in your tests and bundles ChromeDriver.
 
 ```sh
@@ -20,37 +20,38 @@ $ npm install --save-dev spectron
 
 ```javascript
 // A simple test to verify a visible window is opened with a title
-var Application = require('spectron').Application
-var assert = require('assert')
+const Application = require('spectron').Application
+const assert = require('assert')
 
-var app = new Application({
+const myApp = new Application({
   path: '/Applications/MyApp.app/Contents/MacOS/MyApp'
 })
 
-app.start().then(function () {
-  // Check if the window is visible
-  return app.browserWindow.isVisible()
-}).then(function (isVisible) {
-  // Verify the window is visible
-  assert.equal(isVisible, true)
-}).then(function () {
-  // Get the window's title
-  return app.client.getTitle()
-}).then(function (title) {
-  // Verify the window's title
-  assert.equal(title, 'My App')
-}).catch(function (error) {
-  // Log any failures
-  console.error('Test failed', error.message)
-}).then(function () {
+const verifyWindowIsVisibleWithTitle = async (app) => {
+  await app.start()
+  try {
+    // Check if the window is visible
+    const isVisible = await app.browserWindow.isVisible()
+    // Verify the window is visible
+    assert.strictEqual(isVisible, true)
+    // Get the window's title
+    const title = await app.client.getTitle()
+    // Verify the window's title
+    assert.strictEqual(title, 'My App')
+  } catch (error) {
+    // Log any failures
+    console.error('Test failed', error.message)
+  }
   // Stop the application
-  return app.stop()
-})
+  await app.stop()
+}
+
+verifyWindowIsVisibleWithTitle(myApp)
 ```
 
 ## Setting up with WebDriverJs
 
-[WebDriverJs](https://code.google.com/p/selenium/wiki/WebDriverJs) provides
+[WebDriverJs](https://www.selenium.dev/selenium/docs/api/javascript/index.html) provides
 a Node package for testing with web driver, we will use it as an example.
 
 ### 1. Start ChromeDriver
@@ -85,12 +86,12 @@ const driver = new webdriver.Builder()
   // The "9515" is the port opened by chrome driver.
   .usingServer('http://localhost:9515')
   .withCapabilities({
-    chromeOptions: {
+    'goog:chromeOptions': {
       // Here is the path to your Electron binary.
       binary: '/Path-to-Your-App.app/Contents/MacOS/Electron'
     }
   })
-  .forBrowser('electron')
+  .forBrowser('chrome') // note: use .forBrowser('electron') for selenium-webdriver <= 3.6.0
   .build()
 
 driver.get('http://www.google.com')
@@ -107,7 +108,7 @@ driver.quit()
 
 ## Setting up with WebdriverIO
 
-[WebdriverIO](http://webdriver.io/) provides a Node package for testing with web
+[WebdriverIO](https://webdriver.io/) provides a Node package for testing with web
 driver.
 
 ### 1. Start ChromeDriver
@@ -135,17 +136,17 @@ $ npm install webdriverio
 const webdriverio = require('webdriverio')
 const options = {
   host: 'localhost', // Use localhost as chrome driver server
-  port: 9515,        // "9515" is the port opened by chrome driver.
+  port: 9515, // "9515" is the port opened by chrome driver.
   desiredCapabilities: {
     browserName: 'chrome',
-    chromeOptions: {
+    'goog:chromeOptions': {
       binary: '/Path-to-Your-App/electron', // Path to your Electron binary.
-      args: [/* cli arguments */]           // Optional, perhaps 'app=' + /path/to/your/app/
+      args: [/* cli arguments */] // Optional, perhaps 'app=' + /path/to/your/app/
     }
   }
 }
 
-let client = webdriverio.remote(options)
+const client = webdriverio.remote(options)
 
 client
   .init()

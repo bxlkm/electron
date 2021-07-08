@@ -27,32 +27,49 @@ see [SECURITY.md](https://github.com/electron/electron/tree/master/SECURITY.md)
 
 ## Chromium Security Issues and Upgrades
 
-While Electron strives to support new versions of Chromium as soon as possible,
-developers should be aware that upgrading is a serious undertaking - involving
-hand-editing dozens or even hundreds of files. Given the resources and
-contributions available today, Electron will often not be on the very latest
-version of Chromium, lagging behind by several weeks or a few months.
+Electron keeps up to date with alternating Chromium releases. For more information,
+see the [Electron Release Cadence blog post](https://electronjs.org/blog/12-week-cadence).
 
-We feel that our current system of updating the Chromium component strikes an
-appropriate balance between the resources we have available and the needs of
-the majority of applications built on top of the framework. We definitely are
-interested in hearing more about specific use cases from the people that build
-things on top of Electron. Pull requests and contributions supporting this
-effort are always very welcome.
+## Security Is Everyone's Responsibility
 
-## Ignoring Above Advice
+It is important to remember that the security of your Electron application is
+the result of the overall security of the framework foundation
+(*Chromium*, *Node.js*), Electron itself, all NPM dependencies and
+your code. As such, it is your responsibility to follow a few important best
+practices:
 
-A security issue exists whenever you receive code from a remote destination and
-execute it locally. As an example, consider a remote website being displayed
-inside a [`BrowserWindow`][browser-window]. If an attacker somehow manages to
-change said content (either by attacking the source directly, or by sitting
-between  your app and the actual destination), they will be able to execute
-native code on the user's machine.
+* **Keep your application up-to-date with the latest Electron framework release.**
+When releasing your product, you’re also shipping a bundle composed of Electron,
+Chromium shared library and Node.js. Vulnerabilities affecting these components
+may impact the security of your application. By updating Electron to the latest
+version, you ensure that critical vulnerabilities (such as *nodeIntegration bypasses*)
+are already patched and cannot be exploited in your application. For more information,
+see "[Use a current version of Electron](#15-use-a-current-version-of-electron)".
+
+* **Evaluate your dependencies.** While NPM provides half a million reusable packages,
+it is your responsibility to choose trusted 3rd-party libraries. If you use outdated
+libraries affected by known vulnerabilities or rely on poorly maintained code,
+your application security could be in jeopardy.
+
+* **Adopt secure coding practices.** The first line of defense for your application
+is your own code. Common web vulnerabilities, such as Cross-Site Scripting (XSS),
+have a higher security impact on Electron applications hence it is highly recommended
+to adopt secure software development best practices and perform security testing.
+
+## Isolation For Untrusted Content
+
+A security issue exists whenever you receive code from an untrusted source (e.g.
+a remote server) and execute it locally. As an example, consider a remote
+website being displayed inside a default [`BrowserWindow`][browser-window]. If
+an attacker somehow manages to change said content (either by attacking the
+source directly, or by sitting between your app and the actual destination), they
+will be able to execute native code on the user's machine.
 
 > :warning: Under no circumstances should you load and execute remote code with
 Node.js integration enabled. Instead, use only local files (packaged together
 with your application) to execute Node.js code. To display remote content, use
-the [`<webview>`][webview-tag] tag and make sure to disable the `nodeIntegration`.
+the [`<webview>`][webview-tag] tag or [`BrowserView`][browser-view], make sure
+to disable the `nodeIntegration` and enable `contextIsolation`.
 
 ## Electron Security Warnings
 
@@ -66,23 +83,30 @@ either `process.env` or the `window` object.
 
 ## Checklist: Security Recommendations
 
-This is not bulletproof, but at the least, you should follow these steps to
-improve the security of your application.
+You should at least follow these steps to improve the security of your application:
 
 1. [Only load secure content](#1-only-load-secure-content)
-2. [Disable the Node.js integration in all renderers that display remote content](#2-disable-nodejs-integration-for-remote-content)
+2. [Disable the Node.js integration in all renderers that display remote content](#2-do-not-enable-nodejs-integration-for-remote-content)
 3. [Enable context isolation in all renderers that display remote content](#3-enable-context-isolation-for-remote-content)
 4. [Use `ses.setPermissionRequestHandler()` in all sessions that load remote content](#4-handle-session-permission-requests-from-remote-content)
 5. [Do not disable `webSecurity`](#5-do-not-disable-websecurity)
 6. [Define a `Content-Security-Policy`](#6-define-a-content-security-policy) and use restrictive rules (i.e. `script-src 'self'`)
-7. [Override and disable `eval`](#7-override-and-disable-eval), which allows strings to be executed as code.
-8. [Do not set `allowRunningInsecureContent` to `true`](#8-do-not-set-allowrunninginsecurecontent-to-true)
-9. [Do not enable experimental features](#9-do-not-enable-experimental-features)
-10. [Do not use `enableBlinkFeatures`](#10-do-not-use-enableblinkfeatures)
-11. [`<webview>`: Do not use `allowpopups`](#11-do-not-use-allowpopups)
-12. [`<webview>`: Verify options and params](#12-verify-webview-options-before-creation)
-13. [Disable or limit navigation](#13-disable-or-limit-navigation)
-14. [Disable or limit creation of new windows](#14-disable-or-limit-creation-of-new-windows)
+7. [Do not set `allowRunningInsecureContent` to `true`](#7-do-not-set-allowrunninginsecurecontent-to-true)
+8. [Do not enable experimental features](#8-do-not-enable-experimental-features)
+9. [Do not use `enableBlinkFeatures`](#9-do-not-use-enableblinkfeatures)
+10. [`<webview>`: Do not use `allowpopups`](#10-do-not-use-allowpopups)
+11. [`<webview>`: Verify options and params](#11-verify-webview-options-before-creation)
+12. [Disable or limit navigation](#12-disable-or-limit-navigation)
+13. [Disable or limit creation of new windows](#13-disable-or-limit-creation-of-new-windows)
+14. [Do not use `openExternal` with untrusted content](#14-do-not-use-openexternal-with-untrusted-content)
+15. [Use a current version of Electron](#15-use-a-current-version-of-electron)
+
+To automate the detection of misconfigurations and insecure patterns, it is
+possible to use
+[electronegativity](https://github.com/doyensec/electronegativity). For
+additional details on potential weaknesses and implementation bugs when
+developing applications using Electron, please refer to this [guide for
+developers and auditors](https://doyensec.com/resources/us-17-Carettoni-Electronegativity-A-Study-Of-Electron-Security-wp.pdf)
 
 ## 1) Only Load Secure Content
 
@@ -107,26 +131,27 @@ like `HTTP`. Similarly, we recommend the use of `WSS` over `WS`, `FTPS` over
 
 ```js
 // Bad
-browserWindow.loadURL('http://my-website.com')
+browserWindow.loadURL('http://example.com')
 
 // Good
-browserWindow.loadURL('https://my-website.com')
+browserWindow.loadURL('https://example.com')
 ```
 
 ```html
 <!-- Bad -->
-<script crossorigin src="http://cdn.com/react.js"></script>
-<link rel="stylesheet" href="http://cdn.com/style.css">
+<script crossorigin src="http://example.com/react.js"></script>
+<link rel="stylesheet" href="http://example.com/style.css">
 
 <!-- Good -->
-<script crossorigin src="https://cdn.com/react.js"></script>
-<link rel="stylesheet" href="https://cdn.com/style.css">
+<script crossorigin src="https://example.com/react.js"></script>
+<link rel="stylesheet" href="https://example.com/style.css">
 ```
 
+## 2) Do not enable Node.js Integration for Remote Content
 
-## 2) Disable Node.js Integration for Remote Content
+_This recommendation is the default behavior in Electron since 5.0.0._
 
-It is paramount that you disable Node.js integration in any renderer
+It is paramount that you do not enable Node.js integration in any renderer
 ([`BrowserWindow`][browser-window], [`BrowserView`][browser-view], or
 [`<webview>`][webview-tag]) that loads remote content. The goal is to limit the
 powers you grant to remote content, thus making it dramatically more difficult
@@ -134,7 +159,7 @@ for an attacker to harm your users should they gain the ability to execute
 JavaScript on your website.
 
 After this, you can grant additional permissions for specific hosts. For example,
-if you are opening a BrowserWindow pointed at `https://my-website.com/", you can
+if you are opening a BrowserWindow pointed at `https://example.com/`, you can
 give that website exactly the abilities it needs, but no more.
 
 ### Why?
@@ -150,20 +175,25 @@ so-called "Remote Code Execution" (RCE) attack.
 
 ```js
 // Bad
-const mainWindow = new BrowserWindow()
-mainWindow.loadURL('https://my-website.com')
+const mainWindow = new BrowserWindow({
+  webPreferences: {
+    nodeIntegration: true,
+    nodeIntegrationInWorker: true
+  }
+})
+
+mainWindow.loadURL('https://example.com')
 ```
 
 ```js
 // Good
 const mainWindow = new BrowserWindow({
   webPreferences: {
-    nodeIntegration: false,
-    preload: './preload.js'
+    preload: path.join(app.getAppPath(), 'preload.js')
   }
 })
 
-mainWindow.loadURL('https://my-website.com')
+mainWindow.loadURL('https://example.com')
 ```
 
 ```html
@@ -191,7 +221,6 @@ window.readConfig = function () {
 }
 ```
 
-
 ## 3) Enable Context Isolation for Remote Content
 
 Context isolation is an Electron feature that allows developers to run code
@@ -202,52 +231,13 @@ practice, that means that global objects like `Array.prototype.push` or
 Electron uses the same technology as Chromium's [Content Scripts](https://developer.chrome.com/extensions/content_scripts#execution-environment)
 to enable this behavior.
 
-### Why?
+Even when `nodeIntegration: false` is used, to truly enforce strong isolation
+and prevent the use of Node primitives `contextIsolation` **must** also be used.
 
-Context isolation allows each the scripts on running in the renderer to make
-changes to its JavaScript environment without worrying about conflicting with
-the scripts in the Electron API or the preload script.
+### Why & How?
 
-While still an experimental Electron feature, context isolation adds an
-additional layer of security. It creates a new JavaScript world for Electron
-APIs and preload scripts.
-
-At the same time, preload scripts still have access to the  `document` and
-`window` objects. In other words, you're getting a decent return on a likely
-very small investment.
-
-### How?
-
-```js
-// Main process
-const mainWindow = new BrowserWindow({
-  webPreferences: {
-    contextIsolation: true,
-    preload: 'preload.js'
-  }
-})
-```
-
-```js
-// Preload script
-
-// Set a variable in the page before it loads
-webFrame.executeJavaScript('window.foo = "foo";')
-
-// The loaded page will not be able to access this, it is only available
-// in this context
-window.bar = 'bar'
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Will log out 'undefined' since window.foo is only available in the main
-  // context
-  console.log(window.foo)
-
-  // Will log out 'bar' since window.bar is available in this context
-  console.log(window.bar)
-})
-```
-
+For more information on what `contextIsolation` is and how to enable it please
+see our dedicated [Context Isolation](context-isolation.md) document.
 
 ## 4) Handle Session Permission Requests From Remote Content
 
@@ -279,13 +269,13 @@ session
       callback(true)
     }
 
-    if (!url.startsWith('https://my-website.com')) {
+    // Verify URL
+    if (!url.startsWith('https://example.com/')) {
       // Denies the permissions request
       return callback(false)
     }
   })
 ```
-
 
 ## 5) Do Not Disable WebSecurity
 
@@ -305,6 +295,7 @@ Disabling `webSecurity` will disable the same-origin policy and set
 the execution of insecure code from different domains.
 
 ### How?
+
 ```js
 // Bad
 const mainWindow = new BrowserWindow({
@@ -327,7 +318,6 @@ const mainWindow = new BrowserWindow()
 <webview src="page.html"></webview>
 ```
 
-
 ## 6) Define a Content Security Policy
 
 A Content Security Policy (CSP) is an additional layer of protection against
@@ -337,20 +327,20 @@ be enabled by any website you load inside Electron.
 ### Why?
 
 CSP allows the server serving content to restrict and control the resources
-Electron can load for that given web page. `https://your-page.com` should
+Electron can load for that given web page. `https://example.com` should
 be allowed to load scripts from the origins you defined while scripts from
 `https://evil.attacker.com` should not be allowed to run. Defining a CSP is an
 easy way to improve your application's security.
 
 The following CSP will allow Electron to execute scripts from the current
-website and from `apis.mydomain.com`.
+website and from `apis.example.com`.
 
-```txt
+```plaintext
 // Bad
 Content-Security-Policy: '*'
 
 // Good
-Content-Security-Policy: script-src 'self' https://apis.mydomain.com
+Content-Security-Policy: script-src 'self' https://apis.example.com
 ```
 
 ### CSP HTTP Header
@@ -361,53 +351,30 @@ which can be set using Electron's
 handler:
 
 ```javascript
-const {session} = require('electron')
+const { session } = require('electron')
 
 session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-  callback({responseHeaders: `default-src 'none'`})
+  callback({
+    responseHeaders: {
+      ...details.responseHeaders,
+      'Content-Security-Policy': ['default-src \'none\'']
+    }
+  })
 })
 ```
 
 ### CSP Meta Tag
 
-CSP's preferred delivery mechanism is an HTTP header. It can be useful, however,
-to set a policy on a page directly in the markup using a `<meta>` tag:
+CSP's preferred delivery mechanism is an HTTP header, however it is not possible
+to use this method when loading a resource using the `file://` protocol. It can
+be useful in some cases, such as using the `file://` protocol, to set a policy
+on a page directly in the markup using a `<meta>` tag:
 
 ```html
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'">
 ```
 
-#### `webRequest.onHeadersReceived([filter, ]listener)`
-
-
-## 7) Override and Disable `eval`
-
-`eval()` is a core JavaScript method that allows the execution of JavaScript
-from a string. Disabling it disables your app's ability to evaluate JavaScript
-that is not known in advance.
-
-### Why?
-
-The `eval()` method has precisely one mission: To evaluate a series of
-characters as JavaScript and execute it. It is a required method whenever you
-need to evaluate code that is not known ahead of time. While legitimate use
-cases exist, like any other code generators, `eval()` is difficult to harden.
-
-Generally speaking, it is easier to completely disable `eval()` than to make
-it bulletproof. Thus, if you do not need it, it is a good idea to disable it.
-
-### How?
-
-```js
-// ESLint will warn about any use of eval(), even this one
-// eslint-disable-next-line
-window.eval = global.eval = function () {
-  throw new Error(`Sorry, this app does not support window.eval().`)
-}
-```
-
-
-## 8) Do Not Set `allowRunningInsecureContent` to `true`
+## 7) Do Not Set `allowRunningInsecureContent` to `true`
 
 _Recommendation is Electron's default_
 
@@ -440,8 +407,7 @@ const mainWindow = new BrowserWindow({
 const mainWindow = new BrowserWindow({})
 ```
 
-
-## 9) Do Not Enable Experimental Features
+## 8) Do Not Enable Experimental Features
 
 _Recommendation is Electron's default_
 
@@ -473,8 +439,7 @@ const mainWindow = new BrowserWindow({
 const mainWindow = new BrowserWindow({})
 ```
 
-
-## 10) Do Not Use `enableBlinkFeatures`
+## 9) Do Not Use `enableBlinkFeatures`
 
 _Recommendation is Electron's default_
 
@@ -491,11 +456,12 @@ ramifications are, and how it impacts the security of your application. Under
 no circumstances should you enable features speculatively.
 
 ### How?
+
 ```js
 // Bad
 const mainWindow = new BrowserWindow({
   webPreferences: {
-    enableBlinkFeatures: ['ExecCommandInJavaScript']
+    enableBlinkFeatures: 'ExecCommandInJavaScript'
   }
 })
 ```
@@ -505,8 +471,7 @@ const mainWindow = new BrowserWindow({
 const mainWindow = new BrowserWindow()
 ```
 
-
-## 11) Do Not Use `allowpopups`
+## 10) Do Not Use `allowpopups`
 
 _Recommendation is Electron's default_
 
@@ -533,8 +498,7 @@ you know it needs that feature.
 <webview src="page.html"></webview>
 ```
 
-
-## 12) Verify WebView Options Before Creation
+## 11) Verify WebView Options Before Creation
 
 A WebView created in a renderer process that does not have Node.js integration
 enabled will not be able to enable integration itself. However, a WebView will
@@ -571,7 +535,7 @@ app.on('web-contents-created', (event, contents) => {
     webPreferences.nodeIntegration = false
 
     // Verify URL being loaded
-    if (!params.src.startsWith('https://yourapp.com/')) {
+    if (!params.src.startsWith('https://example.com/')) {
       event.preventDefault()
     }
   })
@@ -581,7 +545,7 @@ app.on('web-contents-created', (event, contents) => {
 Again, this list merely minimizes the risk, it does not remove it. If your goal
 is to display a website, a browser will be a more secure option.
 
-## 13) Disable or limit navigation
+## 12) Disable or limit navigation
 
 If your app has no need to navigate or only needs to navigate to known pages,
 it is a good idea to limit navigation outright to that known scope, disallowing
@@ -608,8 +572,8 @@ might navigate to, check the URL in the event handler and only let navigation
 occur if it matches the URLs you're expecting.
 
 We recommend that you use Node's parser for URLs. Simple string comparisons can
-sometimes be fooled - a `startsWith('https://google.com')` test would let
-`https://google.com.attacker.com` through.
+sometimes be fooled - a `startsWith('https://example.com')` test would let
+`https://example.com.attacker.com` through.
 
 ```js
 const URL = require('url').URL
@@ -618,14 +582,14 @@ app.on('web-contents-created', (event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl)
 
-    if (parsedUrl.origin !== 'https://my-own-server.com') {
+    if (parsedUrl.origin !== 'https://example.com') {
       event.preventDefault()
     }
   })
 })
 ```
 
-## 14) Disable or limit creation of new windows
+## 13) Disable or limit creation of new windows
 
 If you have a known set of windows, it's a good idea to limit the creation of
 additional windows in your app.
@@ -645,29 +609,88 @@ windows at runtime.
 
 ### How?
 
-[`webContents`][web-contents] will emit the [`new-window`][new-window] event
-before creating new windows. That event will be passed, amongst other
-parameters, the `url` the window was requested to open and the options used to
-create it. We recommend that you use the event to scrutinize the creation of
-windows, limiting it to only what you need.
+[`webContents`][web-contents] will delegate to its [window open
+handler][window-open-handler] before creating new windows. The handler will
+receive, amongst other parameters, the `url` the window was requested to open
+and the options used to create it. We recommend that you register a handler to
+monitor the creation of windows, and deny any unexpected window creation.
 
 ```js
 const { shell } = require('electron')
 
 app.on('web-contents-created', (event, contents) => {
-  contents.on('new-window', (event, navigationUrl) => {
+  contents.setWindowOpenHandler(({ url }) => {
     // In this example, we'll ask the operating system
     // to open this event's url in the default browser.
-    event.preventDefault()
+    //
+    // See the following item for considerations regarding what
+    // URLs should be allowed through to shell.openExternal.
+    if (isSafeForExternalOpen(url)) {
+      setImmediate(() => {
+        shell.openExternal(url)
+      })
+    }
 
-    shell.openExternal(navigationUrl)
+    return { action: 'deny' }
   })
 })
 ```
+
+## 14) Do not use `openExternal` with untrusted content
+
+Shell's [`openExternal`][open-external] allows opening a given protocol URI with
+the desktop's native utilities. On macOS, for instance, this function is similar
+to the `open` terminal command utility and will open the specific application
+based on the URI and filetype association.
+
+### Why?
+
+Improper use of [`openExternal`][open-external] can be leveraged to compromise
+the user's host. When openExternal is used with untrusted content, it can be
+leveraged to execute arbitrary commands.
+
+### How?
+
+```js
+//  Bad
+const { shell } = require('electron')
+shell.openExternal(USER_CONTROLLED_DATA_HERE)
+```
+
+```js
+//  Good
+const { shell } = require('electron')
+shell.openExternal('https://example.com/index.html')
+```
+
+## 15) Use a current version of Electron
+
+You should strive for always using the latest available version of Electron.
+Whenever a new major version is released, you should attempt to update your
+app as quickly as possible.
+
+### Why?
+
+An application built with an older version of Electron, Chromium, and Node.js
+is an easier target than an application that is using more recent versions of
+those components. Generally speaking, security issues and exploits for older
+versions of Chromium and Node.js are more widely available.
+
+Both Chromium and Node.js are impressive feats of engineering built by
+thousands of talented developers. Given their popularity, their security is
+carefully tested and analyzed by equally skilled security researchers. Many of
+those researchers [disclose vulnerabilities responsibly][responsible-disclosure],
+which generally means that researchers will give Chromium and Node.js some time
+to fix issues before publishing them. Your application will be more secure if
+it is running a recent version of Electron (and thus, Chromium and Node.js) for
+which potential security issues are not as widely known.
 
 [browser-window]: ../api/browser-window.md
 [browser-view]: ../api/browser-view.md
 [webview-tag]: ../api/webview-tag.md
 [web-contents]: ../api/web-contents.md
-[new-window]: ../api/web-contents.md#event-new-window
+[window-open-handler]: ../api/web-contents.md#contentssetwindowopenhandlerhandler
 [will-navigate]: ../api/web-contents.md#event-will-navigate
+[open-external]: ../api/shell.md#shellopenexternalurl-options
+[sandbox]: ../tutorial/sandbox.md
+[responsible-disclosure]: https://en.wikipedia.org/wiki/Responsible_disclosure

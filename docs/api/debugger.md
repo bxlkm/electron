@@ -8,8 +8,8 @@ Chrome Developer Tools has a [special binding][rdp] available at JavaScript
 runtime that allows interacting with pages and instrumenting them.
 
 ```javascript
-const {BrowserWindow} = require('electron')
-let win = new BrowserWindow()
+const { BrowserWindow } = require('electron')
+const win = new BrowserWindow()
 
 try {
   win.webContents.debugger.attach('1.1')
@@ -32,6 +32,34 @@ win.webContents.debugger.on('message', (event, method, params) => {
 win.webContents.debugger.sendCommand('Network.enable')
 ```
 
+### Instance Events
+
+#### Event: 'detach'
+
+Returns:
+
+* `event` Event
+* `reason` String - Reason for detaching debugger.
+
+Emitted when the debugging session is terminated. This happens either when
+`webContents` is closed or devtools is invoked for the attached `webContents`.
+
+#### Event: 'message'
+
+Returns:
+
+* `event` Event
+* `method` String - Method name.
+* `params` any - Event parameters defined by the 'parameters'
+   attribute in the remote debugging protocol.
+* `sessionId` String - Unique identifier of attached debugging session,
+   will match the value sent from `debugger.sendCommand`.
+
+Emitted whenever the debugging target issues an instrumentation event.
+
+[rdp]: https://chromedevtools.github.io/devtools-protocol/
+[`webContents.findInPage`]: web-contents.md#contentsfindinpagetext-options
+
 ### Instance Methods
 
 #### `debugger.attach([protocolVersion])`
@@ -48,36 +76,19 @@ Returns `Boolean` - Whether a debugger is attached to the `webContents`.
 
 Detaches the debugger from the `webContents`.
 
-#### `debugger.sendCommand(method[, commandParams, callback])`
+#### `debugger.sendCommand(method[, commandParams, sessionId])`
 
 * `method` String - Method name, should be one of the methods defined by the
-   remote debugging protocol.
-* `commandParams` Object (optional) - JSON object with request parameters.
-* `callback` Function (optional) - Response
-  * `error` Object - Error message indicating the failure of the command.
-  * `result` Any - Response defined by the 'returns' attribute of
-     the command description in the remote debugging protocol.
+   [remote debugging protocol][rdp].
+* `commandParams` any (optional) - JSON object with request parameters.
+* `sessionId` String (optional) - send command to the target with associated
+   debugging session id. The initial value can be obtained by sending
+   [Target.attachToTarget][attachToTarget] message.
+
+[attachToTarget]: https://chromedevtools.github.io/devtools-protocol/tot/Target/#method-attachToTarget
+
+Returns `Promise<any>` - A promise that resolves with the response defined by
+the 'returns' attribute of the command description in the remote debugging protocol
+or is rejected indicating the failure of the command.
 
 Send given command to the debugging target.
-
-### Instance Events
-
-#### Event: 'detach'
-
-* `event` Event
-* `reason` String - Reason for detaching debugger.
-
-Emitted when debugging session is terminated. This happens either when
-`webContents` is closed or devtools is invoked for the attached `webContents`.
-
-#### Event: 'message'
-
-* `event` Event
-* `method` String - Method name.
-* `params` Object - Event parameters defined by the 'parameters'
-   attribute in the remote debugging protocol.
-
-Emitted whenever debugging target issues instrumentation event.
-
-[rdp]: https://developer.chrome.com/devtools/docs/debugger-protocol
-[`webContents.findInPage`]: web-contents.md#contentsfindinpagetext-options

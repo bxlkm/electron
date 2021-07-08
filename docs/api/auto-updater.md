@@ -6,6 +6,8 @@ Process: [Main](../glossary.md#main-process)
 
 **See also: [A detailed guide about how to implement updates in your application](../tutorial/updates.md).**
 
+`autoUpdater` is an [EventEmitter][event-emitter].
+
 ## Platform Notices
 
 Currently, only macOS and Windows are supported. There is no built-in support
@@ -84,7 +86,7 @@ Emitted when an update has been downloaded.
 
 On Windows only `releaseName` is available.
 
-**Note:** It is not strictly necessary to handle this event. A successfully 
+**Note:** It is not strictly necessary to handle this event. A successfully
 downloaded update will still be applied the next time the application starts.
 
 ### Event: 'before-quit-for-update'
@@ -101,8 +103,8 @@ The `autoUpdater` object has the following methods:
 
 * `options` Object
   * `url` String
-  * `headers` Object (optional) _macOS_ - HTTP request headers.
-  * `serverType` String (optional) _macOS_ - Either `json` or `default`, see the [Squirrel.Mac][squirrel-mac]
+  * `headers` Record<String, String> (optional) _macOS_ - HTTP request headers.
+  * `serverType` String (optional) _macOS_ - Can be `json` or `default`, see the [Squirrel.Mac][squirrel-mac]
     README for more information.
 
 Sets the `url` and initialize the auto updater.
@@ -116,6 +118,9 @@ Returns `String` - The current update feed URL.
 Asks the server whether there is an update. You must call `setFeedURL` before
 using this API.
 
+**Note:** If an update is available it will be downloaded automatically.
+Calling `autoUpdater.checkForUpdates()` twice will download the update two times.
+
 ### `autoUpdater.quitAndInstall()`
 
 Restarts the app and installs the update after it has been downloaded. It
@@ -125,8 +130,8 @@ Under the hood calling `autoUpdater.quitAndInstall()` will close all application
 windows first, and automatically call `app.quit()` after all windows have been
 closed.
 
-**Note:** It is not strictly necessary to call this function to apply an update, 
-as a successfully downloaded update will always be applied the next time the 
+**Note:** It is not strictly necessary to call this function to apply an update,
+as a successfully downloaded update will always be applied the next time the
 application starts.
 
 [squirrel-mac]: https://github.com/Squirrel/Squirrel.Mac
@@ -136,3 +141,4 @@ application starts.
 [installer-lib]: https://github.com/electron/windows-installer
 [electron-forge-lib]: https://github.com/electron-userland/electron-forge
 [app-user-model-id]: https://msdn.microsoft.com/en-us/library/windows/desktop/dd378459(v=vs.85).aspx
+[event-emitter]: https://nodejs.org/api/events.html#events_class_eventemitter

@@ -9,9 +9,6 @@
 #include <windows.h>
 #endif  // defined(OS_WIN)
 
-#include <set>
-#include <vector>
-
 #include "base/callback.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
@@ -58,9 +55,9 @@ class ProcessSingleton {
   // Chrome process was launched. Return true if the command line will be
   // handled within the current browser instance or false if the remote process
   // should handle it (i.e., because the current process is shutting down).
-  using NotificationCallback =
-      base::Callback<bool(const base::CommandLine::StringVector& command_line,
-                          const base::FilePath& current_directory)>;
+  using NotificationCallback = base::RepeatingCallback<bool(
+      const base::CommandLine::StringVector& command_line,
+      const base::FilePath& current_directory)>;
 
   ProcessSingleton(const base::FilePath& user_data_dir,
                    const NotificationCallback& notification_callback);
@@ -94,7 +91,7 @@ class ProcessSingleton {
 #if defined(OS_WIN)
   // Called to query whether to kill a hung browser process that has visible
   // windows. Return true to allow killing the hung process.
-  using ShouldKillRemoteProcessCallback = base::Callback<bool()>;
+  using ShouldKillRemoteProcessCallback = base::RepeatingCallback<bool()>;
   void OverrideShouldKillRemoteProcessCallbackForTesting(
       const ShouldKillRemoteProcessCallback& display_dialog_callback);
 #endif
@@ -120,17 +117,18 @@ class ProcessSingleton {
       const base::TimeDelta& timeout);
   void OverrideCurrentPidForTesting(base::ProcessId pid);
   void OverrideKillCallbackForTesting(
-      const base::Callback<void(int)>& callback);
+      const base::RepeatingCallback<void(int)>& callback);
 #endif
 
  private:
   NotificationCallback notification_callback_;  // Handler for notifications.
 
 #if defined(OS_WIN)
-  HWND remote_window_;               // The HWND_MESSAGE of another browser.
+  HWND remote_window_ = nullptr;     // The HWND_MESSAGE of another browser.
   base::win::MessageWindow window_;  // The message-only window.
-  bool is_virtualized_;  // Stuck inside Microsoft Softricity VM environment.
-  HANDLE lock_file_;
+  bool is_virtualized_ =
+      false;  // Stuck inside Microsoft Softricity VM environment.
+  HANDLE lock_file_ = INVALID_HANDLE_VALUE;
   base::FilePath user_data_dir_;
   ShouldKillRemoteProcessCallback should_kill_remote_process_callback_;
 #elif defined(OS_POSIX) && !defined(OS_ANDROID)
@@ -157,7 +155,7 @@ class ProcessSingleton {
 
   // Function to call when the other process is hung and needs to be killed.
   // Allows overriding for tests.
-  base::Callback<void(int)> kill_callback_;
+  base::RepeatingCallback<void(int)> kill_callback_;
 
   // Path in file system to the socket.
   base::FilePath socket_path_;
@@ -175,7 +173,7 @@ class ProcessSingleton {
   // because it posts messages between threads.
   class LinuxWatcher;
   scoped_refptr<LinuxWatcher> watcher_;
-  int sock_;
+  int sock_ = -1;
   bool listen_on_ready_ = false;
 #endif
 
